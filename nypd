@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Police Complaints Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/datatables.net-bs4@1.10.24/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15.4/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f9fafb;
+            color: #1f2937;
+        }
+        
+        .officer-multiple-complaints {
+            background-color: rgba(251, 191, 36, 0.1);
+        }
+        
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        .search-container {
+            position: relative;
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 0.7rem;
+            color: #9ca3af;
+        }
+        
+        .dashboard-title {
+            background: linear-gradient(to right, #2563eb, #4f46e5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
+        
+        .tag-complaint {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+        
+        .tag-corruption {
+            background-color: #fef3c7;
+            color: #d97706;
+        }
+        
+        .tag-investigation {
+            background-color: #e0e7ff;
+            color: #4f46e5;
+        }
+        
+        .tag-misconduct {
+            background-color: #f3e8ff;
+            color: #9333ea;
+        }
+        
+        .tag-exonerated {
+            background-color: #dcfce7;
+            color: #16a34a;
+        }
+        
+        .tag-substantiated {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+        
+        .tag-unsubstantiated {
+            background-color: #f5f5f5;
+            color: #6b7280;
+        }
+        
+        .dataTables_filter {
+            display: none;
+        }
+        
+        .dataTables_length select {
+            padding: 0.25rem 2rem 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            border: 1px solid #e5e7eb;
+            background-color: #fff;
+            color: #1f2937;
+        }
+        
+        .dataTables_info {
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin-top: 1rem;
+        }
+        
+        .paginate_button {
+            margin: 0 0.25rem;
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.375rem;
+            border: 1px solid #e5e7eb;
+            background-color: #fff;
+            color: #1f2937;
+            cursor: pointer;
+        }
+        
+        .paginate_button.current {
+            background-color: #2563eb;
+            color: #fff;
+            border-color: #2563eb;
+        }
+        
+        .paginate_button.disabled {
+            color: #d1d5db;
+            cursor: not-allowed;
+        }
+        
+        .filter-dropdown {
+            appearance: none;
+            padding: 0.5rem 2rem 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            border: 1px solid #e5e7eb;
+            background-color: #fff;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+        }
+        
+        @media print {
+            body {
+                background-color: white;
+            }
+            
+            .no-print {
+                display: none;
+            }
+            
+            .table-container {
+                overflow-x: visible;
+            }
+            
+            thead {
+                display: table-header-group;
+            }
+            
+            tr {
+                page-break-inside: avoid;
+            }
+            
+            .card {
+                box-shadow: none;
+                border: 1px solid #e5e7eb;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold dashboard-title mb-2">Police Complaints Dashboard</h1>
+            <p class="text-gray-600 max-w-3xl">
+                This dashboard displays disciplinary records and complaints filed against police officers. 
+                Use the search and filter tools below to explore the data.
+            </p>
+        </header>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="flex flex-col md:flex-row mb-6 gap-4">
+                <div class="search-container flex-grow">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="global-search" placeholder="Search by officer name, complaint type, etc." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                
+                <div class="flex flex-wrap gap-3 items-center">
+                    <div>
+                        <select id="event-filter" class="filter-dropdown">
+                            <option value="">All Event Types</option>
+                            <option value="Complaint">Complaint</option>
+                            <option value="Corruption Case">Corruption Case</option>
+                            <option value="Internal Investigation">Internal Investigation</option>
+                            <option value="Misconduct Case">Misconduct Case</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <select id="outcome-filter" class="filter-dropdown">
+                            <option value="">All Outcomes</option>
+                            <option value="Exonerated">Exonerated</option>
+                            <option value="Substantiated">Substantiated</option>
+                            <option value="Unsubstantiated">Unsubstantiated</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <select id="year-filter" class="filter-dropdown">
+                            <option value="">All Years</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="complaints-table" class="w-full text-left">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-gray-700 font-medium">Officer</th>
+                            <th class="px-4 py-3 text-gray-700 font-medium">Date</th>
+                            <th class="px-4 py-3 text-gray-700 font-medium">Event Type</th>
+                            <th class="px-4 py-3 text-gray-700 font-medium">Description</th>
+                            <th class="px-4 py-3 text-gray-700 font-medium">Outcome</th>
+                            <th class="px-4 py-3 text-gray-700 font-medium">Shield/Tax ID</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Instructions for Use</h2>
+            
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-medium text-lg mb-2">Searching and Filtering</h3>
+                    <ul class="list-disc pl-5 text-gray-700 space-y-1">
+                        <li>Use the search box to search across all fields</li>
+                        <li>Use the dropdown filters to filter by specific criteria</li>
+                        <li>Click on column headers to sort by that column</li>
+                        <li>Officers with multiple complaints are highlighted with a yellow background</li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="font-medium text-lg mb-2">Data Explanation</h3>
+                    <ul class="list-disc pl-5 text-gray-700 space-y-1">
+                        <li><span class="tag tag-complaint">Complaint</span> - Filed by civilians or other officers</li>
+                        <li><span class="tag tag-corruption">Corruption</span> - Allegations of officer corruption</li>
+                        <li><span class="tag tag-investigation">Investigation</span> - Internal investigations</li>
+                        <li><span class="tag tag-misconduct">Misconduct</span> - Officer misconduct cases</li>
+                    </ul>
+                    
+                    <h3 class="font-medium text-lg mt-4 mb-2">Outcome Labels</h3>
+                    <ul class="list-disc pl-5 text-gray-700 space-y-1">
+                        <li><span class="tag tag-substantiated">Substantiated</span> - Evidence supported the allegation</li>
+                        <li><span class="tag tag-unsubstantiated">Unsubstantiated</span> - Evidence was insufficient</li>
+                        <li><span class="tag tag-exonerated">Exonerated</span> - Officer's actions deemed justified</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="text-center text-gray-500 text-sm py-4">
+            <p>This data was compiled from disciplinary records. For research and transparency purposes only.</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/datatables.net@1.10.25/js/jquery.dataTables.min.js"></script>
+    <script>
+        // Police complaints dataset compiled from the PDF files
+        const complaintData = [
+            // Eric Lumpkin
+            {
+                officerName: "Eric Lumpkin",
+                date: "9/26/2005",
+                eventType: "Complaint",
+                description: "Complainant: hispanic female, 46. Allegation: Force - Physical Force",
+                outcome: "Miscellaneous - subject retired",
+                shield: "Not provided",
+                taxId: "Not provided",
+                notes: "Other officers involved: Jerry Garcia, Frank Baldo, Unknown Officer"
+            },
+            {
+                officerName: "Eric Lumpkin",
+                date: "9/21/1988",
+                eventType: "Complaint",
+                description: "Allegation: Offensive language - black",
+                outcome: "Unsubstantiated",
+                shield: "Not provided",
+                taxId: "Not provided",
+                notes: "Other officer involved: James Ngai"
+            },
+            {
+                officerName: "Eric Lumpkin",
+                date: "5/19/1991",
+                eventType: "Complaint",
+                description: "Allegation: Other - Force",
+                outcome: "Other - Complainant uncooperative",
+                shield: "Not provided",
+                taxId: "Not provided",
+                notes: "Other officer involved: Douglas Strong (4 entries)"
+            },
+            {
+                officerName: "Eric Lumpkin",
+                date: "3/6/2004",
+                eventType: "Complaint",
+                description: "Allegation: Force - gun pointed & Abuse of Authority - Threat of arrest & Discourtesy - Word",
+                outcome: "Exonerated (Force/Authority), Unsubstantiated (Discourtesy)",
+                shield: "Not provided",
+                taxId: "Not provided",
+                notes: "No other officers involved"
+            },
+            
+            // Thomas B. Barnett
+            {
+                officerName: "Thomas B. Barnett",
+                date: "3/23/1987",
+                eventType: "Corruption Case",
+                description: "Complaint alleges subjects did not voucher arrest evidence assumed to be narcotics within the confines of the 34 pct.",
+                outcome: "Completed",
+                shield: "29349",
+                taxId: "887717",
+                notes: "Other officer named in the complaint: Sgt Michael R. Reiss (24th Precinct)"
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "3/24/1989",
+                eventType: "Corruption Case",
+                description: "Allegations related to missing money and drugs during armed robbery response at 158 St and Riverside Dr",
+                outcome: "Completed",
+                shield: "29349",
+                taxId: "887717",
+                notes: "Other officers involved: DT3 Joseph A. Romano, SDS Matteo P. Brattesani, Sgt William N. Nolan"
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "6/10/1989",
+                eventType: "Corruption Case",
+                description: "Compl called IAD direct and alleged that officers responded to his residence regarding a GLA and refused to arrest the suspect or make a report.",
+                outcome: "Completed",
+                shield: "29349",
+                taxId: "887717",
+                notes: "Other officers involved: DT3 Elba I Mena"
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "7/14/1991",
+                eventType: "Corruption Case",
+                description: "Multiple incidents of unauthorized radio transmissions with profanity over police radio frequencies",
+                outcome: "Completed",
+                shield: "29349",
+                taxId: "887717",
+                notes: ""
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "4/1/1992",
+                eventType: "IXLO - Conversion",
+                description: "P.O. Barnett reports that he discovered his P.O. Identification card, serial #90871, lost in the basement locker room of the 34 pct.",
+                outcome: "Completed",
+                shield: "29349",
+                taxId: "887717",
+                notes: ""
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "2/2/1995",
+                eventType: "Corruption Case",
+                description: "Generated to create a new case number for additional subjects involved in corruption and serious misconduct allegations in the 30 PCT.",
+                outcome: "Substantiated",
+                shield: "29349",
+                taxId: "887717",
+                notes: "Multiple other officers involved"
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "7/4/1995",
+                eventType: "Corruption Case",
+                description: "Street peddlers allege harassment, brutality & unlawful confiscation of merchandise. Specifically, Fernando Acosta alleges PO Barnett removed gold, jewelry & $130 USC that was not vouchered.",
+                outcome: "Unsubstantiated",
+                shield: "29349",
+                taxId: "887717",
+                notes: ""
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "10/27/1995",
+                eventType: "IXLO - Conversion",
+                description: "P.O. Barnett was placed on suspension for 20 days for failure to report information to a commanding officer.",
+                outcome: "Completed (Suspended)",
+                shield: "29349",
+                taxId: "887717",
+                notes: ""
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "7/26/1996",
+                eventType: "Corruption Case",
+                description: "Complainant alleged via letter that PO Barnett removes property from vendors, does not provide receipt, and sells the goods at store he owns.",
+                outcome: "Info. and Intelligence",
+                shield: "29349",
+                taxId: "887717", 
+                notes: "Subject assigned to CPOP/Peddler Enforcement"
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "9/25/1996",
+                eventType: "Corruption Case",
+                description: "Natalia Diaz alleged assault and arrest by officer for unlicensed peddling. Claims officer targets unlicensed vendors and keeps their merchandise.",
+                outcome: "Unsubstantiated",
+                shield: "29349",
+                taxId: "887717",
+                notes: ""
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "4/9/1998",
+                eventType: "Misconduct Case",
+                description: "Officer failed to appear in criminal court for case 97N087633 on multiple dates (2/25/98, 3/13/98, 4/6/98)",
+                outcome: "Substantiated",
+                shield: "29349", 
+                taxId: "887717",
+                notes: ""
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "3/12/2003",
+                eventType: "Misconduct Case",
+                description: "Allegations of unauthorized off-duty employment as a Stagehand, working over permitted hours, earning ~$100,000 additional compensation",
+                outcome: "Substantiated (Off Duty Employment & Misuse of Time), Unsubstantiated (Off Miscon Other)",
+                shield: "29349",
+                taxId: "887717",
+                notes: "Written reprimand issued 5/7/2004"
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "6/4/2005",
+                eventType: "Outside Guidelines",
+                description: "Lost two off-duty firearms (S/W 38 caliber) after mistakenly throwing out locked box during house cleaning/moving",
+                outcome: "Substantiated",
+                shield: "29349",
+                taxId: "887717",
+                notes: "Penalty: Charges"
+            },
+            {
+                officerName: "Thomas B. Barnett",
+                date: "8/8/2005",
+                eventType: "Misconduct Case",
+                description: "Negotiated penalty suspension - suspended for 30 days (8/9/2005-9/7/2005)",
+                outcome: "SAM-Dispo of Dept Trial - Info. and Intelligence",
+                shield: "29349",
+                taxId: "887717",
+                notes: "Disciplinary Case#79866/04 & 81001/05"
+            },
+            
+            // Robert Small
+            {
+                officerName: "Robert Small",
+                date: "1/1/1976",
+                eventType: "Internal Investigation",
+                description: "Failed to arrest person in possession of a gun.",
+                outcome: "Unsubstantiated",
+                shield: "268",
+                taxId: "867804",
+                notes: "Date used for computer data entry, not necessarily true occurrence date"
+            },
+            {
+                officerName: "Robert Small",
+                date: "6/8/1987",
+                eventType: "Corruption Case",
+                description: "Complainant alleges that when he was arrested at his residence, USC was not vouchered or returned.",
+                outcome: "Exonerated",
+                shield: "268",
+                taxId: "867804",
+                notes: "Joint with: Vincent J. Kelly, Kenneth E. Nolan, Daniel J. Collins, Horace D. Balmer"
+            },
+            {
+                officerName: "Robert Small",
+                date: "9/15/1983",
+                eventType: "Internal Investigation",
+                description: "Complaint alleges that $13,000 U.S.C. was removed from his residence after he was arrested.",
+                outcome: "Exonerated",
+                shield: "268",
+                taxId: "867804",
+                notes: "Investigation revealed above detective was not involved in arrest of complainant"
+            },
+            {
+                officerName: "Robert Small",
+                date: "5/6/1991",
+                eventType: "Internal Investigation",
+                description: "Anonymous writer to IAD alleges that subjects solicited sex from a woman in Manhattan.",
+                outcome: "Unsubstantiated",
+                shield: "268",
+                taxId: "867804",
+                notes: ""
+            },
+            {
+                officerName: "Robert Small",
+                date: "5/6/1991",
+                eventType: "Corruption Investigation",
+                description: "Anonymous postcard to IAD states: 'Take notice. Officer Bill Nolan - 34 PCT and Det. Bob Small - 34 PCT solicited sex from a woman in Manhattan.'",
+                outcome: "Unsubstantiated",
+                shield: "268",
+                taxId: "867804",
+                notes: ""
+            },
+            
+            // Edwin Ramos
+            {
+                officerName: "Edwin Ramos",
+                date: "10/9/1988",
+                eventType: "Victim complaint",
+                description: "Complainant alleges the officer assaulted her with his fists and took her wallet containing driver's license and personal papers.",
+                outcome: "Completed",
+                shield: "28717",
+                taxId: "881342",
+                notes: "Captain reports preliminary investigation showed no visible injury, complainant refused to elaborate"
+            },
+            {
+                officerName: "Edwin Ramos",
+                date: "5/20/1991",
+                eventType: "Corruption Case",
+                description: "Complainant states police broke down his door looking for a man with a gun. Alleges $180 cash was missing from wallet after officers left.",
+                outcome: "Completed",
+                shield: "28717",
+                taxId: "881342",
+                notes: "Investigation found Ramos should not have been added as subject, name was inadvertently added to case"
+            },
+            {
+                officerName: "Edwin Ramos",
+                date: "6/11/1993",
+                eventType: "Corruption Case",
+                description: "Complainant called precinct stating MOS responded to his residence on radio run of shots fired, broke down door, searched apt and left. After MOS left, complainant discovered $884 USC missing from dresser drawer.",
+                outcome: "Unsubstantiated",
+                shield: "28717",
+                taxId: "881342",
+                notes: "Multiple other officers involved"
+            },
+            {
+                officerName: "Edwin Ramos",
+                date: "1/20/1994",
+                eventType: "Internal Investigation",
+                description: "Complainant alleges subject used excessive force. Struck him with cuffs, pushed, kneed him, placed gun to his head and used profanity. Also alleges subject kicked another individual in chest.",
+                outcome: "Unsubstantiated (1), Substantiated (2)",
+                shield: "28717",
+                taxId: "881342",
+                notes: ""
+            },
+            {
+                officerName: "Edwin Ramos",
+                date: "2/3/1995",
+                eventType: "IXLO - Conversion",
+                description: "Officer received charges and specifications for prohibited conduct",
+                outcome: "Completed",
+                shield: "28717",
+                taxId: "881342",
+                notes: "Added to case #94-1391"
+            },
+            {
+                officerName: "Edwin Ramos",
+                date: "1/8/1996",
+                eventType: "Misconduct Case",
+                description: "Officer had his private residence burglarized by unknown person(s) who stole his Smith & Wesson 4\" .38 cal revolver Serial #ABN9839.",
+                outcome: "Completed",
+                shield: "28717",
+                taxId: "881342",
+                notes: ""
+            },
+            {
+                officerName: "Edwin Ramos",
+                date: "6/21/1997",
+                eventType: "Misconduct Case",
+                description: "Complainant called and alleged that the officer while in uniform asked him to purchase a beer for him.",
+                outcome: "Completed",
+                shield: "28717",
+                taxId: "881342",
+                notes: "Officer was in RMP with unidentified white male officer"
+            },
+            {
+                officerName: "Edwin Ramos",
+                date: "6/29/1997",
+                eventType: "Misconduct Case",
+                description: "Officer arrested and suspended resulting from incident during which he menaced complainant with a firearm and was found to be unfit for duty.",
+                outcome: "Completed",
+                shield: "28717",
+                taxId: "881342",
+                notes: "Incident occurred when complainant blew horn at off-duty officer while passing vehicle. Officer followed complainant to Pathmark supermarket and menaced him and two female occupants with gun."
+            },
+            {
+                officerName: "Edwin Ramos",
+                date: "7/1/1997",
+                eventType: "Corruption Case",
+                description: "Officer arrested for menacing complainant with a firearm and being unfit for duty.",
+                outcome: "Substantiated",
+                shield: "28717",
+                taxId: "881342",
+                notes: ""
+            },
+            {
+                officerName: "Edwin Ramos",
+                date: "8/8/1997",
+                eventType: "Misconduct Case",
+                description: "Generated to replace previous log. Officer was arrested and suspended for menacing complainant with a firearm and not being fit for duty.",
+                outcome: "Completed",
+                shield: "28717",
+                taxId: "881342",
+                notes: ""
+            },
+            {
+                officerName: "Edwin Ramos",
+                date: "5/19/1999",
+                eventType: "Outside Guidelines",
+                description: "Officer reported AWOL since 0800hrs. Later located at his residence. Officer stated he put in for 2 days off but dates were incorrect.",
+                outcome: "Forwarded",
+                shield: "28717",
+                taxId: "881342",
+                notes: ""
+            },
+            {
+                officerName: "Edwin Ramos",
+                date: "12/27/2001",
+                eventType: "Outside Guidelines",
+                description: "Retired officer lost his NYPD ID card #64639 on 12/18/01 and reported it stolen on 12/25/01.",
+                outcome: "Forwarded",
+                shield: "28717",
+                taxId: "881342",
+                notes: "Indicates officer retired honorably"
+            }
+        ];
+        
+        $(document).ready(function() {
+            // Count officers and their complaint frequency
+            const officerCounts = {};
+            complaintData.forEach(record => {
+                if (!officerCounts[record.officerName]) {
+                    officerCounts[record.officerName] = 0;
+                }
+                officerCounts[record.officerName]++;
+            });
+            
+            // Generate unique years for the year filter
+            const years = new Set();
+            complaintData.forEach(record => {
+                const year = record.date.split('/').pop();
+                if (year && year.length === 4) {
+                    years.add(year);
+                }
+            });
+            
+            // Populate year filter dropdown with sorted years
+            const yearSelect = document.getElementById('year-filter');
+            Array.from(years).sort((a, b) => b - a).forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                yearSelect.appendChild(option);
+            });
+            
+            // Initialize DataTable
+            const table = $('#complaints-table').DataTable({
+                data: complaintData,
+                columns: [
+                    { 
+                        data: 'officerName',
+                        render: function(data, type, row) {
+                            if (type === 'display') {
+                                const count = officerCounts[data];
+                                return `<div class="font-medium">${data}</div>
+                                        <div class="text-xs text-gray-500">${count} record${count !== 1 ? 's' : ''}</div>`;
+                            }
+                            return data;
+                        }
+                    },
+                    { 
+                        data: 'date',
+                        render: function(data, type, row) {
+                            if (type === 'sort') {
+                                // Convert date for proper sorting
+                                const parts = data.split('/');
+                                if (parts.length === 3) {
+                                    return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+                                }
+                                return data;
+                            }
+                            return data;
+                        }
+                    },
+                    { 
+                        data: 'eventType',
+                        render: function(data, type, row) {
+                            if (type === 'display') {
+                                let tagClass = 'tag-complaint';
+                                
+                                if (data.includes('Corruption')) {
+                                    tagClass = 'tag-corruption';
+                                } else if (data.includes('Investigation')) {
+                                    tagClass = 'tag-investigation';
+                                } else if (data.includes('Misconduct')) {
+                                    tagClass = 'tag-misconduct';
+                                }
+                                
+                                return `<span class="tag ${tagClass}">${data}</span>`;
+                            }
+                            return data;
+                        }
+                    },
+                    { data: 'description' },
+                    { 
+                        data: 'outcome',
+                        render: function(data, type, row) {
+                            if (type === 'display') {
+                                let tagClass = '';
+                                
+                                if (data.includes('Substantiated')) {
+                                    tagClass = 'tag-substantiated';
+                                } else if (data.includes('Unsubstantiated')) {
+                                    tagClass = 'tag-unsubstantiated';
+                                } else if (data.includes('Exonerated')) {
+                                    tagClass = 'tag-exonerated';
+                                }
+                                
+                                if (tagClass) {
+                                    return `<span class="tag ${tagClass}">${data}</span>`;
+                                }
+                                return data;
+                            }
+                            return data;
+                        }
+                    },
+                    { 
+                        data: null,
+                        render: function(data, type, row) {
+                            return `<div>Shield: ${row.shield}</div>
+                                    <div>Tax ID: ${row.taxId}</div>`;
+                        }
+                    }
+                ],
+                rowCallback: function(row, data) {
+                    // Highlight officers with multiple complaints
+                    if (officerCounts[data.officerName] > 2) {
+                        $(row).addClass('officer-multiple-complaints');
+                    }
+                },
+                order: [[1, 'desc']], // Sort by date descending initially
+                pageLength: 15,
+                lengthMenu: [10, 15, 25, 50, 100],
+                responsive: true,
+                language: {
+                    search: "_INPUT_",
+                    searchPlaceholder: "Search...",
+                    lengthMenu: "Show _MENU_ entries",
+                    info: "Showing _START_ to _END_ of _TOTAL_ records",
+                    infoEmpty: "Showing 0 to 0 of 0 records",
+                    infoFiltered: "(filtered from _MAX_ total records)"
+                }
+            });
+            
+            // Global search functionality
+            $('#global-search').on('keyup', function() {
+                table.search(this.value).draw();
+            });
+            
+            // Event type filter
+            $('#event-filter').on('change', function() {
+                table.column(2).search(this.value).draw();
+            });
+            
+            // Outcome filter
+            $('#outcome-filter').on('change', function() {
+                table.column(4).search(this.value).draw();
+            });
+            
+            // Year filter
+            $('#year-filter').on('change', function() {
+                const year = this.value;
+                
+                if (year) {
+                    // Custom search function to match year at the end of the date string
+                    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+                        const dateString = data[1]; // Date column
+                        return dateString.endsWith(year);
+                    });
+                } else {
+                    // Remove any custom search function
+                    $.fn.dataTable.ext.search.pop();
+                }
+                
+                table.draw();
+            });
+        });
+    </script>
+</body>
+</html>
